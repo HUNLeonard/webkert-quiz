@@ -1,0 +1,1376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quiz</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <button id="toggle-theme">Toggle Theme</button>
+  <div id="lobby">
+    <h1>Quiz Lobby</h1>
+    <div id="options">
+      <button id="randomize-questions">Randomize Question Sequence</button>
+      <button id="randomize-answers">Randomize Question Answers</button>
+    </div>
+    <button id="start-quiz">Start Quiz</button>
+  </div>
+
+  <div id="quiz-container" style="display: none;">
+    <h1>Quiz</h1>
+    <div id="quiz"></div>
+    <div id="controls">
+      <button id="prev-btn" disabled>Previous</button>
+      <button id="next-btn">Next</button>
+      <button id="finish-btn" style="display: none;">Finish</button>
+    </div>
+    <div id="question-numbers"></div>
+    <div id="summary" style="display: none;"></div>
+  </div>
+
+
+<script type="module">
+
+const quizContainer = document.getElementById('quiz');
+const quiz_Container = document.getElementById('quiz-container');
+const prevBtn = document.getElementById('prev-btn');
+const nextBtn = document.getElementById('next-btn');
+const finishBtn = document.getElementById('finish-btn');
+const summaryContainer = document.getElementById('summary');
+const questionNumbersContainer = document.getElementById('question-numbers');
+const lobbyContainer = document.getElementById('lobby');
+
+let currentQuestionIndex = 0;
+const userAnswers = {};
+const answeredQuestions = new Set();
+
+const startQuiz = () => {
+  lobbyContainer.style.display = 'none';
+  quiz_Container.style.display = 'block';
+  buildQuiz();
+};
+
+function buildQuiz() {
+    const currentQuestion = quizData[currentQuestionIndex];
+
+    quizContainer.innerHTML = '';
+
+    const questionDiv = document.createElement('div');
+    questionDiv.classList.add('question');
+
+    const questionName = document.createElement('h2');
+    questionName.textContent = currentQuestion.QuestionName;
+    questionDiv.appendChild(questionName);
+
+    const answersDiv = document.createElement('div');
+    answersDiv.classList.add('answers');
+
+    currentQuestion.Answers.forEach((answer, answerIndex) => {
+        const answerDiv = document.createElement('div');
+        answerDiv.classList.add('answer');
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.id = `question-${currentQuestionIndex}-answer-${answerIndex}`;
+        checkbox.checked = userAnswers[currentQuestionIndex]?.includes(answerIndex) || false;
+        checkbox.disabled = answeredQuestions.has(currentQuestionIndex);
+        answerDiv.appendChild(checkbox);
+
+        const label = document.createElement('label');
+        label.htmlFor = checkbox.id;
+        label.textContent = answer;
+        answerDiv.appendChild(label);
+
+        if (userAnswers[currentQuestionIndex]?.includes(answerIndex)) {
+            answerDiv.classList.add('selected');
+            const correctAnswersIndexes = quizData[currentQuestionIndex].CorrectAnswersIndexes;
+            if (correctAnswersIndexes.includes(answerIndex)) {
+                answerDiv.classList.add('correct');
+            } else {
+                answerDiv.classList.add('incorrect');
+            }
+        } else if (answeredQuestions.has(currentQuestionIndex) && currentQuestion.CorrectAnswersIndexes.includes(answerIndex)) {
+            answerDiv.classList.add('unselected-correct');
+        }
+
+        if (document.body.classList.contains('dark-theme')) {
+          answerDiv.classList.add('dark-theme');
+        }
+
+        answersDiv.appendChild(answerDiv);
+    });
+
+    questionDiv.appendChild(answersDiv);
+    quizContainer.appendChild(questionDiv);
+
+    prevBtn.disabled = currentQuestionIndex === 0;
+    nextBtn.disabled = currentQuestionIndex === quizData.length - 1;
+    finishBtn.style.display = currentQuestionIndex === quizData.length - 1 ? 'inline-block' : 'none';
+
+    updateQuestionNumbers();
+}
+
+const randomizeQuestions = () => {
+  quizData.sort(() => Math.random() - 0.5);
+};
+
+const randomizeAnswers = () => {
+  quizData.forEach((question) => {
+    const originalAnswers = [...question.Answers];
+    const originalCorrectAnswersIndexes = [...question.CorrectAnswersIndexes];
+
+    question.Answers.sort(() => Math.random() - 0.5);
+
+    question.CorrectAnswersIndexes = originalCorrectAnswersIndexes.map(
+      (index) => question.Answers.indexOf(originalAnswers[index])
+    );
+  });
+};
+
+function updateQuestionNumbers() {
+    questionNumbersContainer.innerHTML = '';
+  
+    const questionNumbers = [];
+  
+    // Add the first few question numbers
+    for (let i = 0; i < Math.min(2, currentQuestionIndex); i++) {
+      const questionNumber = document.createElement('span');
+      questionNumber.textContent = i + 1;
+      questionNumber.classList.add(getQuestionNumberColor(i));
+      questionNumber.addEventListener('click', () => navigateToQuestion(i));
+      questionNumbers.push(questionNumber);
+    }
+  
+    // Add '...' if there are more than 2 question numbers before the current question
+    if (currentQuestionIndex >= 3) {
+      const ellipsis = document.createElement('span');
+      ellipsis.textContent = '...';
+      questionNumbers.push(ellipsis);
+    }
+  
+    // Add the previous question number
+    if (currentQuestionIndex > 2) {
+      const prevQuestionNumber = document.createElement('span');
+      prevQuestionNumber.textContent = currentQuestionIndex;
+      prevQuestionNumber.classList.add(getQuestionNumberColor(currentQuestionIndex - 1));
+      prevQuestionNumber.addEventListener('click', () => navigateToQuestion(currentQuestionIndex - 1));
+      questionNumbers.push(prevQuestionNumber);
+    }
+  
+    // Add the current question number
+    const currentQuestionNumber = document.createElement('span');
+    currentQuestionNumber.textContent = currentQuestionIndex + 1;
+    currentQuestionNumber.classList.add('current', getQuestionNumberColor(currentQuestionIndex));
+    questionNumbers.push(currentQuestionNumber);
+  
+    // Add the next question number
+    if (currentQuestionIndex < quizData.length - 1) {
+      const nextQuestionNumber = document.createElement('span');
+      nextQuestionNumber.textContent = currentQuestionIndex + 2;
+      nextQuestionNumber.classList.add(getQuestionNumberColor(currentQuestionIndex + 1));
+      nextQuestionNumber.addEventListener('click', () => navigateToQuestion(currentQuestionIndex + 1));
+      questionNumbers.push(nextQuestionNumber);
+    }
+  
+    // Add '...' if there are more than 2 question numbers after the current question
+    if (quizData.length - currentQuestionIndex > 3) {
+      const ellipsis = document.createElement('span');
+      ellipsis.textContent = '...';
+      questionNumbers.push(ellipsis);
+    }
+  
+    // Add the last few question numbers
+    for (let i = Math.max(quizData.length - 2, currentQuestionIndex + 2); i < quizData.length; i++) {
+      const questionNumber = document.createElement('span');
+      questionNumber.textContent = i + 1;
+      questionNumber.classList.add(getQuestionNumberColor(i));
+      questionNumber.addEventListener('click', () => navigateToQuestion(i));
+      questionNumbers.push(questionNumber);
+    }
+  
+    questionNumbersContainer.append(...questionNumbers);
+  }
+
+function getQuestionNumberColor(questionIndex) {
+  if (!answeredQuestions.has(questionIndex)) {
+    return 'unanswered';
+  }
+
+  const currentQuestion = quizData[questionIndex];
+  const correctAnswersIndexes = currentQuestion.CorrectAnswersIndexes;
+  const selectedAnswersIndexes = userAnswers[questionIndex] || [];
+
+  const allCorrect = correctAnswersIndexes.every(index => selectedAnswersIndexes.includes(index)) && selectedAnswersIndexes.length === correctAnswersIndexes.length;
+  const partiallyCorrect = correctAnswersIndexes.some(index => selectedAnswersIndexes.includes(index)) && !allCorrect;
+  
+
+  if (allCorrect) {
+    return 'all-correct';
+  } else if (partiallyCorrect) {
+    return 'partially-correct';
+  } else {
+    return 'all-incorrect';
+  }
+}
+
+function getQuestionNumberClass(questionIndex) {
+    if (!answeredQuestions.has(questionIndex)) {
+      return 'unanswered';
+    }
+  
+    const currentQuestion = quizData[questionIndex];
+    const correctAnswersIndexes = currentQuestion.CorrectAnswersIndexes;
+    const selectedAnswersIndexes = userAnswers[questionIndex] || [];
+  
+    if (selectedAnswersIndexes.length === 0) {
+      return 'unanswered';
+    }
+  
+    const isAllCorrect = correctAnswersIndexes.every((index) => selectedAnswersIndexes.includes(index));
+    const isPartiallyCorrect = correctAnswersIndexes.some((index) => selectedAnswersIndexes.includes(index));
+  
+    if (isAllCorrect) {
+      return 'all-correct';
+    } else if (isPartiallyCorrect) {
+      return 'partially-correct';
+    } else {
+      return 'all-incorrect';
+    }
+}
+
+function checkAnswers() {
+    const currentQuestion = quizData[currentQuestionIndex];
+    const correctAnswersIndexes = currentQuestion.CorrectAnswersIndexes;
+    const answerDivs = quizContainer.querySelectorAll('.answer');
+  
+    const selectedAnswersIndexes = [];
+  
+    answerDivs.forEach((answerDiv, answerIndex) => {
+      const checkbox = answerDiv.querySelector('input[type="checkbox"]');
+      answerDiv.classList.remove('correct', 'incorrect', 'unselected-correct');
+  
+      if (checkbox.checked) {
+        selectedAnswersIndexes.push(answerIndex);
+        answerDiv.classList.add('selected');
+  
+        if (correctAnswersIndexes.includes(answerIndex)) {
+          answerDiv.classList.add('correct');
+        } else {
+          answerDiv.classList.add('incorrect');
+        }
+      } else if (correctAnswersIndexes.includes(answerIndex)) {
+        answerDiv.classList.add('unselected-correct');
+      }
+    });
+  
+    userAnswers[currentQuestionIndex] = selectedAnswersIndexes;
+    answeredQuestions.add(currentQuestionIndex);
+  }
+
+function navigateQuestion(direction) {
+    if (direction === 1) {
+      let anyCheckboxChecked = false;
+      const answerDivs = quizContainer.querySelectorAll('.answer');
+  
+      answerDivs.forEach((answerDiv) => {
+        const checkbox = answerDiv.querySelector('input[type="checkbox"]');
+        if (checkbox.checked) {
+          anyCheckboxChecked = true;
+        }
+      });
+  
+      if (anyCheckboxChecked) {
+        if (!answeredQuestions.has(currentQuestionIndex)) {
+          checkAnswers();
+          setTimeout(() => {
+            currentQuestionIndex += direction;
+            buildQuiz();
+          }, 300);
+        } else {
+          currentQuestionIndex += direction;
+          buildQuiz();
+        }
+      } else {
+        currentQuestionIndex += direction;
+        buildQuiz();
+      }
+    } else {
+      currentQuestionIndex += direction;
+      buildQuiz();
+    }
+}
+
+function navigateToQuestion(questionIndex) {
+    if (questionIndex !== currentQuestionIndex) {
+      currentQuestionIndex = questionIndex;
+      buildQuiz();
+    }
+}
+
+function showSummary() {
+  let anyCheckboxChecked = false;
+  const answerDivs = quizContainer.querySelectorAll('.answer');
+
+  answerDivs.forEach((answerDiv) => {
+    const checkbox = answerDiv.querySelector('input[type="checkbox"]');
+    if (checkbox.checked) {
+      anyCheckboxChecked = true;
+    }
+  });
+
+  if (anyCheckboxChecked) {
+    if (!answeredQuestions.has(currentQuestionIndex)) {
+      checkAnswers();
+      setTimeout(() => {
+        displaySummary();
+      }, 300);
+    } else {
+      displaySummary();
+    }
+  } else {
+    displaySummary();
+  }
+}
+
+function displaySummary() {
+  let score = 0;
+
+  summaryContainer.style.display = 'block';
+  summaryContainer.innerHTML = '';
+
+  quizData.forEach((question, index) => {
+    const questionSummary = document.createElement('div');
+    questionSummary.classList.add('question-summary');
+
+    const questionName = document.createElement('h3');
+    questionName.textContent = question.QuestionName;
+    questionSummary.appendChild(questionName);
+
+    const answersDiv = document.createElement('div');
+    answersDiv.classList.add('answers');
+
+    question.Answers.forEach((answer, answerIndex) => {
+      const answerDiv = document.createElement('div');
+      answerDiv.classList.add('answer');
+
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.disabled = true;
+      checkbox.checked = userAnswers[index]?.includes(answerIndex) || false;
+      answerDiv.appendChild(checkbox);
+
+      const label = document.createElement('label');
+      label.textContent = answer;
+      answerDiv.appendChild(label);
+
+      if (question.CorrectAnswersIndexes.includes(answerIndex)) {
+        answerDiv.classList.add('correct');
+        if (userAnswers[index]?.includes(answerIndex)) {
+          score++;
+          answerDiv.classList.add('selected');
+        }
+      } else if (userAnswers[index]?.includes(answerIndex)) {
+        answerDiv.classList.add('incorrect', 'selected');
+      }
+
+      answersDiv.appendChild(answerDiv);
+    });
+
+    questionSummary.appendChild(answersDiv);
+    summaryContainer.appendChild(questionSummary);
+  });
+
+  const scoreDiv = document.createElement('div');
+  scoreDiv.textContent = `Your score: ${score} out of 105`;
+  summaryContainer.appendChild(scoreDiv);
+
+  quizContainer.style.display = 'none';
+  prevBtn.disabled = true;
+  nextBtn.disabled = true;
+  finishBtn.style.display = 'none';
+}
+
+const toggleTheme = () => {
+  document.body.classList.toggle('dark-theme');
+};
+
+const quizData = [
+    {
+      "QuestionName": "Az alkalmazást",
+      "Answers": [
+        "Nem érdemes modulokra bontani",
+        "Érdemes modulokra bontani"
+      ],
+      "CorrectAnswersIndexes": [1]
+    },
+    {
+      "QuestionName": "Angularban",
+      "Answers": [
+        "Lehet singleton szolgáltatást alkalmazni",
+        "Nem lehet singleton szolgáltatást alkalmazni"
+      ],
+      "CorrectAnswersIndexes": [0]
+    },
+    {
+      "QuestionName": "Produkciós környezetben",
+      "Answers": [
+        "JIT-et érdemes használni",
+        "AOT-ot érdemes használni"
+      ],
+      "CorrectAnswersIndexes": [1]
+    },
+    {
+      "QuestionName": "Az angular-ban",
+      "Answers": [
+        "Két fajta függöségkezelés lehet: futás- és fordításidejű",
+        "csak fordítás idejű függöségkezelés van és erre az NgModules használható"
+      ],
+      "CorrectAnswersIndexes": [0]
+    },
+    {
+      "QuestionName": "Ha modulokra bontjuk az alkalmazást akkor a modulokat a környezet",
+      "Answers": [
+        "Külön tölti le",
+        "Egyszerre tölti le de nem egyszerre tölti be"
+      ],
+      "CorrectAnswersIndexes": [1]
+    },
+    {
+      "QuestionName": "Az NgModulok",
+      "Answers": [
+        "Az alkalmazás modulokra bontására alkalmasak",
+        "opcionálisak helyettük az ES modulokat érdemes használni",
+        "tartalmazhatnak csöveket és direktívákat is"
+      ],
+      "CorrectAnswersIndexes": [2]
+    },
+    {
+      "QuestionName": "A providedIn segítségével",
+      "Answers": [
+        "adhatjuk meg a modul függőségét",
+        "adhatjuk meg a szolgáltatás szkópját"
+      ],
+      "CorrectAnswersIndexes": [1]
+    },
+    {
+      "QuestionName": "Az angular routing segítségével",
+      "Answers": [
+        "megadhatjuk, hogy melyik szolgáltatás melyik szolgáltatással kommunikálhat",
+        "megadhatjuk az adott URL-hez tartozó kezelőket"
+      ],
+      "CorrectAnswersIndexes": [1]
+    },
+    {
+      "QuestionName": "A router outlet",
+      "Answers": [
+        "adja meg azt a helyet ahova a tartalom fog kerülni",
+        "megadja az injektálandó modult"
+      ],
+      "CorrectAnswersIndexes": [0]
+    },
+    {
+      "QuestionName": "Az aktivált útvonal",
+      "Answers": [
+        "megadja, hogy mi a legrövidebb URL az egyik aloldaltól a másikig",
+        "segítségével adatokat adhatunk meg a hívótól a hívott felé"
+      ],
+      "CorrectAnswersIndexes": [1]
+    },
+    {
+      "QuestionName": "A forgalomirányítás segítségével",
+      "Answers": [
+        "lehet adott oldal részeket védetté tenni",
+        "lehet felhasználókat azonosítani"
+      ],
+      "CorrectAnswersIndexes": [0]
+    },
+    {
+      "QuestionName": "Az alkalmazás lebontása",
+      "Answers": [
+        "az alapján célszerű, hogy a bongésző motor, hogyan köti a service worker-hez",
+        "képességek mentén célszerű, mi kerül egyszerre a képrenyőre"
+      ],
+      "CorrectAnswersIndexes": [1]
+    },
+    {
+      "QuestionName": "A védett oldal megoldásának módja",
+      "Answers": [
+        "Route guard-ba adott logika megvalósítása",
+        "egyszerű DOM szintű tulajdonságellenőrzés",
+        "az alapján célszerű, hogy a bongésző motor, hogyan köti a service worker-hez",
+        "képességek mentén célszerű, mi kerül egyszerre a képrenyőre"
+      ],
+      "CorrectAnswersIndexes": [0,3]
+    },
+    {
+      "QuestionName": "Az oldal védettsége",
+      "Answers": [
+        "kiválthatja a hátérrendszerek bonyolult jogosultságkezelő megoldásait",
+        "egy UI képesség, nem számit biztonsági megoldásnak"
+      ],
+      "CorrectAnswersIndexes": [1]
+    },
+    {
+      "QuestionName": "A service worker",
+      "Answers": [
+        "produkciós környezetben megy HTTP és HTTPS felett is",
+        "produkciós környezetben csak HTTPS felett megy"
+      ],
+      "CorrectAnswersIndexes": [1]
+    },
+    {
+      "QuestionName": "A service worker",
+      "Answers": [
+        "segítségével lehet háttér folyamatokat megvalósítani böngészőben",
+        "segítségével lehet titkosítani a forgalmat"
+      ],
+      "CorrectAnswersIndexes": [0]
+    },
+    {
+      "QuestionName": "A service worker",
+      "Answers": [
+        "nem fér hozzá a DOM-hoz",
+        "hozzáfér a DOM-hoz"
+      ],
+      "CorrectAnswersIndexes": [0]
+    },
+    {
+      "QuestionName": "A PUT művelet",
+      "Answers": [
+        "módosításhoz érdemes használni",
+        "létrehozáshot érdemes használni",
+        "gyorsírótárazható",
+        "idempotens"
+      ],
+      "CorrectAnswersIndexes": [0,2,3]
+    },
+    {
+      "QuestionName": "A HTTP előrehaladása",
+      "Answers": [
+        "mivel nem tudjuk a hálózat állapotát nem jelezhető",
+        "jelezhető"
+      ],
+      "CorrectAnswersIndexes": [1]
+    },
+    {
+      "QuestionName": "A HTTP kérések elkapása segítségével",
+      "Answers": [
+        "tudjuk a HTTP forgalmat átalakítani",
+        "tudjuk a HTTP forgalmat elemezni",
+        "tudjuk a HTML-t a médiumhoz testreszabni"
+      ],
+      "CorrectAnswersIndexes": [0,1]
+    },
+    {
+      "QuestionName": "A POST művelet",
+      "Answers": [
+        "módosításhoz érdemes használni",
+        "létrehozáshot érdemes használni",
+        "gyorsírótárazható",
+        "idempotens"
+      ],
+      "CorrectAnswersIndexes": [1]
+    },
+    {
+      "QuestionName": "Az angular DI",
+      "Answers": [
+        "interfész alapú",
+        "konstruktor alapú"
+      ],
+      "CorrectAnswersIndexes": [1]
+    },
+    {
+      "QuestionName": "Demeter törvénye",
+      "Answers": [
+        "Hogy a betöltéskor vegyük figyelembe a kontextust",
+        "Egy adott objektum más dolgok felépítését vagy tulajdonságait a lehető legkevésbé ismerje",
+        "Hogy futásidőben oldjuk fel a függőséget"
+      ],
+      "CorrectAnswersIndexes": [1]
+    },
+    {
+      "QuestionName": "A DI megvalósítási módjai",
+      "Answers": [
+        "interfész",
+        "konstruktor",
+        "setter"
+      ],
+      "CorrectAnswersIndexes": [0,1,2]
+    },
+    {
+      "QuestionName": "Az angular DI-vel injektálható",
+      "Answers": [
+        "szolgáltatás",
+        "annotált objektum",
+        "NgModule"
+      ],
+      "CorrectAnswersIndexes": [1]
+    },
+    {
+      "QuestionName": "Az angular DI",
+      "Answers": [
+        "hierarchikus",
+        "lapos"
+      ],
+      "CorrectAnswersIndexes": [0]
+    },
+    {
+      "QuestionName": "Az angular DI helyszínek",
+      "Answers": [
+        "platform",
+        "komponens",
+        "modul",
+        "elem"
+      ],
+      "CorrectAnswersIndexes": [0,1,2,3]
+    },
+    {
+      "QuestionName": "A JWT elemei",
+      "Answers": [
+        "aláírás",
+        "fejléc",
+        "tartalom"
+      ],
+      "CorrectAnswersIndexes": [0,1,2]
+    },
+    {
+      "QuestionName": "CSP segítségével",
+      "Answers": [
+        "a böngésző csak akkor hajtja végre a szkriptet ha az engedélyezett domain-ről lett letöltve",
+        "a böngésző nem engedi a szkriptnek a kűlső oldalak megnyitását"
+      ],
+      "CorrectAnswersIndexes": [0]
+    },
+    {
+      "QuestionName": "A web biztonsági modellje",
+      "Answers": [
+        "az adott weboldalről letöltött kód csak ahhoz az URL érheti el a hálózaton",
+        "az adott weboldalról letöltött kód bárhová kapcsolatot nyithat de csak HTTP felett"
+      ],
+      "CorrectAnswersIndexes": [0]
+    },
+    {
+      "QuestionName": "Az XSS",
+      "Answers": [
+        "Más nem a megadott URL-hez férhet hozzá a támadó",
+        "segítségével a támadó kártékony kódot szúrhat be a weboldalba"
+      ],
+      "CorrectAnswersIndexes": [1]
+    },
+    {
+      "QuestionName": "Angular esetén úgy védekezhetünk az XSS ellen",
+      "Answers": [
+        "hogy nem használunk karakterlánc összefűzéses sablont",
+        "hogy használjunk offline sablon fordítót"
+      ],
+      "CorrectAnswersIndexes": [0,1]
+    },
+    {
+      "QuestionName": "A JWT",
+      "Answers": [
+        "egy titkosított csatorna",
+        "egy adott belső struktúrával bíró karakterlánc"
+      ],
+      "CorrectAnswersIndexes": [1]
+    },
+    {
+      "QuestionName": "OAuth 2.0 szerepkörök",
+      "Answers": [
+        "kliens",
+        "jogosultság kezelő szerver",
+        "erőforrást kezelő szerver"
+      ],
+      "CorrectAnswersIndexes": [0,2]
+    },
+    {
+      "QuestionName": "Mi a DI",
+      "Answers": [
+        "Dependency Injection",
+        "Direct Inference"
+      ],
+      "CorrectAnswersIndexes": [0]
+    },
+    {
+      "QuestionName": "A @ViewChild segítségével",
+      "Answers": [
+        "a szülő hozzáfér a gyerek komponens változóihoz",
+        "a szülő láthatóvá teszi a gyerek komponenseit"
+      ],
+      "CorrectAnswersIndexes": [0]
+    },
+    {
+      "QuestionName": "A @Host segítségével",
+      "Answers": [
+        "adott szintre szűkítjük a keresést",
+        "megadjuk azt szintet amely alatt kereshető"
+      ],
+      "CorrectAnswersIndexes": [0]
+    },
+    {
+      "QuestionName": "A HTML5 céljai",
+      "Answers": [
+        "Java fejelsztői környezet támogatása",
+        "Kiváltani a beépülő modulok által megvalósított funkcionalitást (pl.: videó lejátszás)",
+        "C++ kódkönyvtárak beépülő modul szintű futtatása",
+        "Specifikusabb jelölőelemek szabványosítása"
+      ],
+      "CorrectAnswersIndexes": [1,3]
+    },
+    {
+      "QuestionName": "A Hibrid mobil alkalmazás",
+      "Answers": [
+        "Egy mobil alkalmazás amely a webböngészőjében futtatja az alkalmazás logika jelentős részét",
+        "Egy magas szintű keretrendszerben fejlesztett alkalmazás amely le van fordítva az adott mobil keretrendszerre",
+        "Képességeit bekorlátozzák a webböngésző erőforrás elérési képessége, ezeket nem lehet áthidalni"
+      ],
+      "CorrectAnswersIndexes": [0]
+    },
+    {
+      "QuestionName": "A DOM",
+      "Answers": [
+        "A böngészőben tárolt és a HTML oldal adatai. elemei vannak benne fa struktúrába rendezve",
+        "A böngésző és a szerver kapcsolatát segíti aszinkron üzenetekkel"
+      ],
+      "CorrectAnswersIndexes": [0]
+    },
+    {
+      "QuestionName": "A laza betöltés",
+      "Answers": [
+        "Később tölti be a modult",
+        "Később tölti le a hálózatról a modult"
+      ],
+      "CorrectAnswersIndexes": [0]
+    },
+    {
+      "QuestionName": "A web komponens",
+      "Answers": [
+        "a böngésző által biztosított környezet a HTML elemek helyi bővítésére",
+        "A Flash beépülő modulban volt használva"
+      ],
+      "CorrectAnswersIndexes": [0]
+    },
+    {
+      "QuestionName": "A Pipe",
+      "Answers": [
+        "adattranszformációban segít",
+        "a szálakat kezeli",
+        "a szerver kapcsolatokat kezeli"
+      ],
+      "CorrectAnswersIndexes": [0]
+    },
+    {
+      "QuestionName": "A flexbox modell",
+      "Answers": [
+        "X és Y koordinátákhoz köt a dobozokat",
+        "oszlopokba vagy sorokba rendezi a tartalmat"
+      ],
+      "CorrectAnswersIndexes": [0]
+    },
+    {
+      "QuestionName": "A komponensek közötti interakciót",
+      "Answers": [
+        "az Angular menedzseli",
+        "a programozónak kell menedzselnie"
+      ],
+      "CorrectAnswersIndexes": [0]
+    },
+    {
+      "QuestionName": "A PWA",
+      "Answers": [
+        "bármelyik képernyőrész/tartalom mélyen hivatkozható",
+        "hasonló képességekkel bír mint a natív alkalmazás",
+        "Egy web technológiával megírt de a mobil operációs rendszer által biztosított környezeten futtatott alkalmazás",
+        "esetén nem szükséges mobil alkalmazásbolt a telepítéshez"
+      ],
+      "CorrectAnswersIndexes": [0,1,2,3]
+    },
+    {
+      "QuestionName": "A forgalomirányítás segítségével",
+      "Answers": [
+        "lehet a felhasználót azonosítani",
+        "lehet adott oldal részeket védetté tenni"
+      ],
+      "CorrectAnswersIndexes": [1]
+    },
+    {
+      "QuestionName": "Alternatív osztály szolgáltató lényege",
+      "Answers": [
+        "adott helyen kicserélhetjük az implementációt",
+        "ha egyiket nem találta meg akkor betölti a másikat"
+      ],
+      "CorrectAnswersIndexes": [0]
+    },
+    {
+      "QuestionName": "A fa rázás célja",
+      "Answers": [
+        "a nem használt komponensek kihagyása a végső csomagból",
+        "a memória felszabadítása"
+      ],
+      "CorrectAnswersIndexes": [0]
+    },
+    {
+      "QuestionName": "Az Angular adatkötés",
+      "Answers": [
+        "egy és másik sablon között valósul meg",
+        "a szerver és a kliens között valósul meg",
+        "a sablon elemek és a komponens adattagok között valósul meg"
+      ],
+      "CorrectAnswersIndexes": [2]
+    },
+    {
+      "QuestionName": "A sablon kifejezés",
+      "Answers": [
+        "A sablonban használható egyedi nyelvtannal és kontextussal bíró programozási lehetőség",
+        "a Pipe logikáját írja le",
+        "A komponens annotált adattagja"
+      ],
+      "CorrectAnswersIndexes": [0]
+    },
+    {
+      "QuestionName": "A felhasználók számára a",
+      "Answers": [
+        "vertikális görgetés a természetes",
+        "a horizontális görgetés a természetes"
+      ],
+      "CorrectAnswersIndexes": [0]
+    },
+    {
+      "QuestionName": "A strukturális direktívák segítségével",
+      "Answers": [
+        "a HTML szerkezetét tudjuk befolyásolni",
+        "egy elem tulajdonságait tudjuk befolyásolni"
+      ],
+      "CorrectAnswersIndexes": [0]
+    },
+    {
+      "QuestionName": "A klasszikus web alkalmazás",
+      "Answers": [
+        "A kliens csak akkor fordul a szeverhez ha a felhasználó interkaciója alapján ez szükséges",
+        "A kliens ezt HTTP-n kéri le",
+        "Atartalom és a HTML a szerveren áll elő"
+      ],
+      "CorrectAnswersIndexes": [0,1,2]
+    },
+    {
+      "QuestionName": "A routing modul",
+      "Answers": [
+        "egy tervezési minta, használata nem kötelező",
+        "egy modul amelynek használata kötelező"
+      ],
+      "CorrectAnswersIndexes": [0]
+    },
+    {
+      "QuestionName": "A laza betöltés esetén",
+      "Answers": [
+        "minden modul implementációja egy nagy js fájlban van implementálva.",
+        "az egyes modulok önálló js fájlokban vannak implementálva."
+      ],
+      "CorrectAnswersIndexes": [1]
+    },
+    {
+      "QuestionName": "A csatolás célja a nézet adott adattagjai lehetnek",
+      "Answers": [
+        "osztály",
+        "stílus",
+        "tulajdonság",
+        "esemény",
+        "attribútum"
+      ],
+      "CorrectAnswersIndexes": [0,1,2,3,4]
+    },
+    {
+      "QuestionName": "A komponensek életciklusát",
+      "Answers": [
+        "a programozónak kell menedzselnie",
+        "az Angular menedzseli"
+      ],
+      "CorrectAnswersIndexes": [1]
+    },
+    {
+      "QuestionName": "A hibrid mobil alkalmazás esetén a webview",
+      "Answers": [
+        "Az a hely ahol ha szükséges akkor megnyitjuk a külső weboldalakat",
+        "A GUI és a logika megvalósításának helye"
+      ],
+      "CorrectAnswersIndexes": [1]
+    },
+    {
+      "QuestionName": "A HTML szabványosítás tartalmát",
+      "Answers": [
+        "W3C határozza meg",
+        "WHATWHG határozza meg",
+        "A W3C csak formába önti a WHATWHG által készített javaslatot"
+      ],
+      "CorrectAnswersIndexes": [1,2]
+    },
+    {
+      "QuestionName": "Az Angular",
+      "Answers": [
+        "HTML elemeket alkalmaz melyeket a szerver oldalon hoz létre",
+        "Komponensekből építi fel a weboldalt"
+      ],
+      "CorrectAnswersIndexes": [1]
+    },
+    {
+      "QuestionName": "A beépített attribútum direktívás segítségével",
+      "Answers": [
+        "új HTML elemeket lehet manipulálni",
+        "HTML attribútumokat lehet módosítani"
+      ],
+      "CorrectAnswersIndexes": [1]
+    },
+    {
+      "QuestionName": "A szülő komponens a gyermek komponensnek az alábbi módon adhat át adatot",
+      "Answers": [
+        "közvetlen hívással",
+        "input dekorációval",
+        "service elemen keresztül"
+      ],
+      "CorrectAnswersIndexes": [1,2]
+    },
+    {
+      "QuestionName": "A router links",
+      "Answers": [
+        "összekapcsolja az egy modulban lévő oldalakat",
+        "a képernyőn látható hivatkozás megvalósítása"
+      ],
+      "CorrectAnswersIndexes": [1]
+    },
+    {
+      "QuestionName": "A CSS display tulajdonság segítségével",
+      "Answers": [
+        "megadhatjuk a mejelenítés típusát",
+        "megadjuk, hogy melyik képernyőn jelenjen meg a tartalom"
+      ],
+      "CorrectAnswersIndexes": [0]
+    },
+    {
+      "QuestionName": "Az alábbiak közül melyik attribútum direktíva?",
+      "Answers": [
+        "ngClass",
+        "ngModel",
+        "ngStyle"
+      ],
+      "CorrectAnswersIndexes": [0,1,2]
+    },
+    {
+      "QuestionName": "A bootstrap",
+      "Answers": [
+        "12 oszlopra bontja a képernyőt",
+        "12 sorra bontja a képernyőt",
+        "12x12 blokkra bontja a képernyőt"
+      ],
+      "CorrectAnswersIndexes": [0]
+    },
+    {
+      "QuestionName": "@Injectable provideIn paramétere",
+      "Answers": [
+        "megadja az injektálás gyökerét",
+        "megadja az injektálandó modult"
+      ],
+      "CorrectAnswersIndexes": [0]
+    },
+    {
+      "QuestionName": "A komponens tulajdonságok lehetnek",
+      "Answers": [
+        "bemenő",
+        "kimenő"
+      ],
+      "CorrectAnswersIndexes": [0,1]
+    },
+    {
+      "QuestionName": "A HTML5 fontosabb területei",
+      "Answers": [
+        "Alkalmazásbolt független telepíthető alkalmazások létrehozása",
+        "Geolokáció",
+        "Offline képességek",
+        "Hozzáférs a mobil környezetk fájlrendszeréhez",
+        "CSS3 alapú animáció"
+      ],
+      "CorrectAnswersIndexes": [0,1,2,4]
+    },
+    {
+      "QuestionName": "Az Angular keretrendszer mögött milyen futtatókörnyezet használható?",
+      "Answers": [
+        "Node.js",
+        "PHP",
+        "Cygwin",
+        "Visual Basic Runtime",
+        "Python"
+      ],
+      "CorrectAnswersIndexes": [0]
+    },
+    {
+      "QuestionName": "A böngésző által biztosított futtatási környezetek",
+      "Answers": [
+        "Natív C++ környezet",
+        "JS környezet",
+        "Web Assembly környezet",
+        "Natív java környezet"
+      ],
+      "CorrectAnswersIndexes": [1,2]
+    },
+    {
+      "QuestionName": "A DI segítségével",
+      "Answers": [
+        "a modulok függőségeit tudjuk dinamikusan kezelni",
+        "a szolgáltatást adjuk át kliensnek, hogy a szolgáltató objektumot a kliens hozná létre"
+      ],
+      "CorrectAnswersIndexes": [1]
+    }
+  ];
+
+
+buildQuiz();
+
+prevBtn.addEventListener('click', () => navigateQuestion(-1));
+nextBtn.addEventListener('click', () => navigateQuestion(1));
+finishBtn.addEventListener('click', showSummary);
+document.getElementById('randomize-questions').addEventListener('click', randomizeQuestions);
+document.getElementById('randomize-answers').addEventListener('click', randomizeAnswers);
+document.getElementById('start-quiz').addEventListener('click', startQuiz);
+document.getElementById('toggle-theme').addEventListener('click', toggleTheme);
+
+</script>
+<style>
+    /* styles.css */
+  body {
+    background-color: #fff;
+    color: #333;
+    transition: background-color 0.3s ease, color 0.3s ease;
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 20px;
+    background-color: #f5f5f5;
+  }
+  
+  #quiz-container {
+    max-width: 600px;
+    margin: 0 auto;
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    padding: 20px;
+  }
+  
+  h1 {
+    text-align: center;
+    color: #333;
+  }
+  
+  .question {
+    margin-bottom: 20px;
+    padding: 10px;
+    background-color: #f9f9f9;
+    border-radius: 4px;
+    min-height: 300px;
+  }
+  
+  .answers {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .answer {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+    position: relative;
+    padding: 10px;
+    border-radius: 4px;
+    transition: background-color 0.3s ease;
+  }
+  
+  .answer:hover {
+    background-color: #f0f0f0;
+  }
+  
+  .answer input[type="checkbox"] {
+    margin-right: 10px;
+  }
+  
+  .answer.correct::after {
+    content: '✓';
+    color: #00cf00;
+    position: absolute;
+    right: 10px;
+    font-weight: bold;
+  }
+  
+  .answer.incorrect::after {
+    content: '✕';
+    color: red;
+    position: absolute;
+    right: 10px;
+    font-weight: bold;
+  }
+  
+  .answer.selected {
+    background-color: #f0f0f0;
+  }
+  
+  .answer.selected.correct {
+    background-color: #5ee763
+  }
+  
+  .answer.selected.incorrect {
+    background-color: #f55968;
+  }
+
+  .answer.unselected-correct::after {
+    content: '✓';
+    margin-left: 4px;
+    color: green;
+    position: absolute;
+    right: 10px;
+  }
+  
+  .answer.unselected-correct {
+    background-color: #e8f5e9;
+  }
+  
+  #controls {
+    display: flex;
+    justify-content: center;
+    margin-top: 20px;
+  }
+  
+  #controls button {
+    margin: 0 10px;
+    padding: 10px 20px;
+    font-size: 16px;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+  }
+
+  #next-btn {
+    background-color: #4CAF50 !important;
+  }
+
+  #next-btn:hover {
+    background-color: #45a049 !important;
+  }
+
+  #prev-btn{
+    background-color: #4c70af !important;
+  }
+
+  #prev-btn:hover{
+    background-color: #3e5b8e !important;
+  }
+
+  #finish-btn{
+    background-color: #f2600e !important;
+  }
+
+  #finish-btn:hover{
+    background-color: #a2430e !important;
+  }
+  
+  #controls button:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+  }
+  
+  #summary {
+    margin-top: 20px;
+  }
+  
+  #summary .question-summary {
+    margin-bottom: 20px;
+    padding: 10px;
+    background-color: #f9f9f9;
+    border-radius: 4px;
+  }
+
+  #question-numbers {
+    display: flex;
+    justify-content: center;
+    margin-top: 10px;
+  }
+  
+#question-numbers span {
+  margin: 0 5px;
+  padding: 5px 10px;
+  border-radius: 4px;
+  background-color: #e0e0e0;
+  color: #333;
+}
+
+
+#question-numbers span.current {
+  background-color: #333;
+}
+
+#question-numbers span.unanswered {
+    background-color: #e0e0e0;
+    color: #333;
+  }
+  
+  #question-numbers span.all-correct {
+    background-color: #4CAF50;
+    color: #fff;
+  }
+  
+  #question-numbers span.partially-correct {
+    background-color: #ff9800;
+    color: #fff;
+  }
+  
+  #question-numbers span.all-incorrect {
+    background-color: #f44336;
+    color: #fff;
+  }
+  
+  #question-numbers span.current {
+    font-weight: bold;
+  }
+
+  #options {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+  #options button {
+    margin: 0 10px;
+    padding: 10px 20px;
+    font-size: 16px;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    background-color: #4CAF50;
+  }
+
+  #options button:hover {
+    background-color: #45a049;
+  }
+
+
+#start-quiz {
+  display: block;
+  margin: 20px auto;
+  padding: 12px 24px;
+  font-size: 18px;
+  font-weight: bold;
+  color: #fff;
+  background-color: #4CAF50;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s ease, transform 0.3s ease;
+}
+
+#start-quiz:hover {
+  background-color: #45a049;
+  transform: scale(1.05);
+}
+
+#start-quiz:active {
+  background-color: #3e8e41;
+  transform: scale(0.95);
+}
+
+body.dark-theme {
+  background-color: #333;
+  color: #fff;
+}
+
+#toggle-theme {
+  display: block;
+  margin: 20px auto;
+  padding: 8px 16px;
+  font-size: 14px;
+  color: #333;
+  background-color: #f0f0f0;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+body.dark-theme #toggle-theme {
+  color: #fff;
+  background-color: #555;
+}
+
+body.dark-theme h1{
+  color: #181818;
+}
+
+body.dark-theme #quiz-container {
+  background-color: #444;
+  color: #fff;
+}
+
+body.dark-theme .question {
+  background-color: #555;
+}
+
+body.dark-theme .answer {
+  background-color: #666;
+}
+
+body.dark-theme .answer:hover {
+  background-color: #777;
+}
+
+body.dark-theme .answer.selected {
+  background-color: #888;
+}
+
+body.dark-theme .answer.selected.correct {
+  background-color: #5ee763;
+}
+
+body.dark-theme .answer.selected.incorrect {
+  background-color: #f55968;
+}
+
+body.dark-theme .answer.unselected-correct {
+  background-color: #204e20;
+}
+
+body.dark-theme #controls button {
+  background-color: #555;
+  color: #fff;
+}
+
+body.dark-theme #controls button:hover {
+  background-color: #666;
+}
+
+
+body.dark-theme #summary .question-summary {
+  background-color: #555;
+}
+
+body.dark-theme #question-numbers span {
+  background-color: #555;
+  color: #fff;
+}
+
+body.dark-theme #question-numbers span.current {
+  background-color: #888;
+}
+
+body.dark-theme #question-numbers span.all-correct {
+  background-color: #4CAF50;
+}
+
+body.dark-theme #question-numbers span.partially-correct {
+  background-color: #ff9800;
+}
+
+body.dark-theme #question-numbers span.all-incorrect {
+  background-color: #f44336;
+}
+</style>
+</body>
+</html>
