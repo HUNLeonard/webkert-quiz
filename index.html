@@ -335,9 +335,14 @@ function showSummary() {
 
 function displaySummary() {
   let score = 0;
+  let maxScore = 0;
 
   summaryContainer.style.display = 'block';
   summaryContainer.innerHTML = '';
+
+  quizData.forEach((question) => {
+    maxScore += question.CorrectAnswersIndexes.length;
+  });
 
   quizData.forEach((question, index) => {
     const questionSummary = document.createElement('div');
@@ -382,7 +387,7 @@ function displaySummary() {
   });
 
   const scoreDiv = document.createElement('div');
-  scoreDiv.textContent = `Your score: ${score} out of 105`;
+  scoreDiv.textContent = `Your score: ${score} out of ${maxScore}`;
   summaryContainer.appendChild(scoreDiv);
 
   quizContainer.style.display = 'none';
@@ -765,7 +770,7 @@ const quizData = [
         "X és Y koordinátákhoz köt a dobozokat",
         "oszlopokba vagy sorokba rendezi a tartalmat"
       ],
-      "CorrectAnswersIndexes": [0]
+      "CorrectAnswersIndexes": [1]
     },
     {
       "QuestionName": "A komponensek közötti interakciót",
